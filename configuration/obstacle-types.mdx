@@ -1,7 +1,7 @@
 ---
 title: "Obstacle types and damage values in AVL Tree Car simulation"
 sidebarTitle: "Obstacle Types"
-description: "Reference for all ten obstacle types served by GET /data/json/obstacles_types.json — including numeric IDs, type names, and damage values used by the frontend."
+description: "Reference for all ten obstacle types from GET /data/json/obstacles_types.json — numeric IDs, type names, and damage values used by the frontend."
 ---
 
 The backend ships a static `obstacles_types.json` file that defines the ten obstacle types available in the simulation. The frontend fetches this file at startup to know which sprite to render for each obstacle node and how much damage a collision with that obstacle inflicts on the car's battery. Every obstacle inserted into the AVL tree carries a `type_id` that maps directly to one of these ten entries.
@@ -19,19 +19,29 @@ curl http://localhost:5000/data/json/obstacles_types.json
 **Response**
 
 ```json
-[
-  { "id": 1,  "type": "Cone",    "damage": 0.5 },
-  { "id": 2,  "type": "Rock",    "damage": 1   },
-  { "id": 3,  "type": "Tree",    "damage": 10  },
-  { "id": 4,  "type": "Tire",    "damage": 5   },
-  { "id": 5,  "type": "Nail",    "damage": 4   },
-  { "id": 6,  "type": "Trunk",   "damage": 6   },
-  { "id": 7,  "type": "Person",  "damage": 3   },
-  { "id": 8,  "type": "Car",     "damage": 15  },
-  { "id": 9,  "type": "Bicycle", "damage": 7   },
-  { "id": 10, "type": "Chair",   "damage": 6   }
-]
+{
+  "status": 200,
+  "ok": true,
+  "message": "'data' is the conent of 'obstacles_types.json' file!",
+  "data": [
+    { "id": 1,  "type": "Cone",    "damage": 0.5 },
+    { "id": 2,  "type": "Rock",    "damage": 1   },
+    { "id": 3,  "type": "Tree",    "damage": 10  },
+    { "id": 4,  "type": "Tire",    "damage": 5   },
+    { "id": 5,  "type": "Nail",    "damage": 4   },
+    { "id": 6,  "type": "Trunk",   "damage": 6   },
+    { "id": 7,  "type": "Person",  "damage": 3   },
+    { "id": 8,  "type": "Car",     "damage": 15  },
+    { "id": 9,  "type": "Bicycle", "damage": 7   },
+    { "id": 10, "type": "Chair",   "damage": 6   }
+  ],
+  "error": null
+}
 ```
+
+<Note>
+  The array of obstacle types is returned inside the `data` field of the standard `BaseFlaskResponse` envelope. The `message` value is the literal string the server produces (including the "conent" typo present in the source).
+</Note>
 
 ## Obstacle types
 

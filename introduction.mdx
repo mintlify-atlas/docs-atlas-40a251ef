@@ -1,7 +1,7 @@
 ---
 title: "AVL Tree Car Backend: Flask AVL tree obstacle server"
 sidebarTitle: "Introduction"
-description: "AVL Tree Car Backend provides a self-balancing AVL tree over HTTP and Socket.IO to power a browser-based car obstacle simulation. Learn what it does and how it's organized."
+description: "AVL Tree Car Backend is a Flask + Socket.IO server that manages a self-balancing AVL tree of road obstacles, exposing a REST API and real-time events."
 ---
 
 AVL Tree Car Backend is a Python server built with Flask and Flask-SocketIO that manages a self-balancing AVL binary search tree of road obstacles. Each node in the tree represents a positioned obstacle on a simulated road — defined by an `x` coordinate (position along the road), a `y` coordinate (height), and one of ten typed obstacle values. The server exposes a REST API for inserting, removing, and bulk-loading obstacles, and a Socket.IO namespace (`/AVLTree`) for pushing real-time tree-state events to connected browser clients.

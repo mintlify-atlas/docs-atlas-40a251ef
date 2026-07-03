@@ -31,13 +31,13 @@ socket.on('connect', () => {
   console.log('Connected to AVL tree namespace');
 });
 
-// Server confirms the connection is ready
+// Server confirms the namespace is ready
 socket.on('connected', (data) => {
   console.log(data);
   // {
   //   ok: true,
   //   received: null,
-  //   message: 'The Socket is Connected, ready to use!',
+  //   message: 'OK',
   //   data: null,
   //   error: null
   // }
@@ -55,7 +55,7 @@ def on_connected(data):
     # {
     #   'ok': True,
     #   'received': None,
-    #   'message': 'The Socket is Connected, ready to use!',
+    #   'message': 'OK',
     #   'data': None,
     #   'error': None
     # }
@@ -106,7 +106,7 @@ Every event emitted by the server — lifecycle or operational — wraps its pay
 The server is initialised with `cors_allowed_origins="*"`, so connections are accepted from any origin. This is suitable for local development and game clients running on the same machine.
 
 <Note>
-  The `SocketManager` constructor passes `cors_allowed_origins` directly to Flask-SocketIO's `SocketIO` base class. The default configuration also enables `supports_credentials=True` through Flask-SocketIO's main constructor defaults, which is appropriate when the frontend and backend run on separate origins.
+  The `SocketManager` constructor passes `cors_allowed_origins` directly to Flask-SocketIO's `SocketIO` base class. No additional CORS settings are configured beyond `cors_allowed_origins="*"`.
 </Note>
 
 ## Next Steps

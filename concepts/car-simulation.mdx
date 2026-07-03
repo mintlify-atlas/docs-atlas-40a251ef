@@ -1,5 +1,5 @@
 ---
-title: "Car simulation model and obstacle interaction"
+title: "Car Simulation Model and Obstacle Interaction Flow"
 sidebarTitle: "Car Simulation"
 description: "Understand the Car entity, how the frontend simulation uses the AVL tree for obstacle ordering, and how traversal results drive the car animation loop."
 ---
@@ -12,7 +12,11 @@ The `Car` class is a lightweight data container. It holds just enough state for 
 
 ```python
 class Car:
-    def __init__(self, battery: int = 0, road_size: tuple[int, int] = (0, 0), velocity: float = 5):
+    def __init__(self, battery:int = 0, road_size:tuple[int, int] = (0, 0), velocity:float = 5):
+        # sprite -> img
+        # Velocity -> float
+        # battery -> int|float
+        # collition_with_obstacle -> bool
         self.velocity = velocity
         self.battery = battery
         self.collition_with_obstacle = False

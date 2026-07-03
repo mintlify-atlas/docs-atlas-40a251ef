@@ -1,7 +1,7 @@
 ---
-title: "Data models and response types in AVL Tree Car Backend"
+title: "Data Models and Response Types in AVL Tree Car Backend"
 sidebarTitle: "Models"
-description: "Reference for all data models in AVL Tree Car Backend: BaseFlaskResponse, ReturnModels, ResponseSocket, Obstacle, Node, and Car — with field types and JSON serialization shapes."
+description: "AVL Tree Car Backend data models: BaseFlaskResponse, ReturnModels, ResponseSocket, Obstacle, Node, and Car — field types, defaults, and JSON shapes."
 ---
 
 The backend uses a small, focused set of Python models for domain objects (`Obstacle`, `Node`, `Car`) and response wrappers (`BaseFlaskResponse`, `ReturnModels`, `ResponseSocket`). Understanding these shapes makes it straightforward to parse API responses and interpret Socket.IO payloads.
@@ -176,11 +176,11 @@ Wraps an `Obstacle` as an AVL tree node, adding structural pointers and a height
   Height of this node in the tree. Leaf nodes have height `1`. Updated after every insert and delete.
 </ResponseField>
 
-<ResponseField name="parent" type="Node | null">
-  Reference to the parent node. `null` for the root.
-</ResponseField>
+<Note>
+  `Node` also carries a `parent` reference (`Node | null`) used internally during rotations and rebalancing. This field is **not** included in the `to_dict()` output — it exists only on the Python object.
+</Note>
 
-`Node.to_dict()` recursively serializes the subtree:
+`Node.to_dict()` recursively serializes the subtree into `value`, `left`, `right`, and `height` only:
 
 ```json
 {
@@ -210,8 +210,8 @@ A lightweight backend model representing the car entity. Primary simulation logi
   Current battery level. Default `0`.
 </ResponseField>
 
-<ResponseField name="collision_with_obstacle" type="bool">
-  Whether the car is currently colliding with an obstacle. Default `false`.
+<ResponseField name="collition_with_obstacle" type="bool">
+  Whether the car is currently colliding with an obstacle. Default `false`. Note: the source spells this field `collition_with_obstacle` (without the second `s`).
 </ResponseField>
 
 <ResponseField name="pos_x" type="int">

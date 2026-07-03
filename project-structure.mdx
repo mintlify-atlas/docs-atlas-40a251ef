@@ -13,8 +13,10 @@ avl_tree_car/
 ├── run.py                            # Entry point — starts Flask + SocketIO on localhost:4500
 ├── requirements.txt                  # Pinned Python dependencies
 └── src/
+    ├── __init__.py
     ├── main.py                       # Main class: wires app, CORS, routers, sockets
     ├── models/
+    │   ├── __init__.py
     │   ├── car.py                    # Car entity
     │   ├── node.py                   # AVL tree node (value, left, right, parent, height)
     │   ├── obstacle.py               # Obstacle value object (id, x, y, type_id)
@@ -33,6 +35,7 @@ avl_tree_car/
     │   ├── socket_manager.py         # SocketManager extends SocketIO — event dispatch and emit helpers
     │   └── socket_avl_tree.py        # Registers all /AVLTree namespace event handlers
     ├── utils/
+    │   ├── __init__.py
     │   ├── files_utils.py            # File I/O helpers
     │   ├── others_utils.py           # Tree serialisation, JSON config validation
     │   └── randoms_utils.py          # Random ID and letter generation

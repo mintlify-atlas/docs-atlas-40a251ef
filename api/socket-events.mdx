@@ -1,7 +1,7 @@
 ---
 title: "Socket.IO Event Reference for the /AVLTree Namespace"
 sidebarTitle: "Socket Events"
-description: "Every Socket.IO event in the /AVLTree namespace: what to emit, what you receive back, payload shapes, and real client code examples."
+description: "Reference for every Socket.IO event in the /AVLTree namespace: what to emit, what you receive back, payload shapes, and client code examples."
 ---
 
 The `/AVLTree` namespace exposes **8 events** — 2 lifecycle events managed automatically by the connection and 6 operational events your client actively triggers. All responses follow the [`ResponseSocket` envelope](/api/socket-overview#response-envelope): every emission carries `ok`, `received`, `message`, `data`, and `error` at the top level.
@@ -20,11 +20,15 @@ The Socket.IO transport fires `connect` the moment a client successfully opens a
 {
   "ok": true,
   "received": null,
-  "message": "The Socket is Connected, ready to use!",
+  "message": "OK",
   "data": null,
   "error": null
 }
 ```
+
+<Note>
+  The root namespace `/` connect handler emits `message: "The Socket is Connected, ready to use!"`. The `/AVLTree` namespace `connect` handler has no custom callback, so it emits the default `ResponseSocket` message `"OK"`.
+</Note>
 
 ```javascript
 import { io } from 'socket.io-client';
@@ -90,7 +94,7 @@ Request the current state of the AVL tree. The server serialises the entire tree
   "data": {
     "id": "0A2B4C6D",
     "children": [
-      { "id": "1X3Y5Z7W", "children": [] },
+      { "id": "1X3Y5Z7W" },
       { "id": "2P4Q6R8S" }
     ]
   },
@@ -147,7 +151,7 @@ socket.on('avl_reseted', (response) => {
 
 ## `remove_obstacle` → `avl_tree_balanced`
 
-Delete a specific obstacle node from the AVL tree. The server locates the node by its `(x, y)` coordinates, removes it, rebalances the tree, and returns the updated tree state. On failure the response has `ok: false` and an `error` message.
+Delete a specific obstacle node from the AVL tree. The server locates the node by its `(x, y)` coordinates and removes it, rebalancing the tree automatically. The response confirms success or failure — `data` is always `null` after this event. On failure the response has `ok: false` and an `error` message.
 
 **Client payload:**
 
@@ -165,17 +169,16 @@ Delete a specific obstacle node from the AVL tree. The server locates the node b
 
 **Server emits:** `avl_tree_balanced`
 
+<ResponseField name="data" type="null">
+  Always `null` for this event. The `emit_obstacle_removed` handler sets only `response.message` and `response.ok` — it does not attach the updated tree to `data`. To retrieve the current tree state after a removal, emit `get_tree_avl`.
+</ResponseField>
+
 ```json
 {
   "ok": true,
   "received": { "x": 150.0, "y": 200.0, "type_id": 3 },
   "message": "Obstacle removed!",
-  "data": {
-    "id": "0A2B4C6D",
-    "children": [
-      { "id": "1X3Y5Z7W" }
-    ]
-  },
+  "data": null,
   "error": null
 }
 ```
@@ -187,7 +190,8 @@ socket.emit('remove_obstacle', { x: 150.0, y: 200.0, type_id: 3 });
 
 socket.on('avl_tree_balanced', (response) => {
   if (response.ok) {
-    console.log('Obstacle removed. Updated tree:', response.data);
+    console.log('Obstacle removed:', response.message);
+    // data is null — emit get_tree_avl to fetch the updated tree
   } else {
     console.warn('Removal failed:', response.error);
   }

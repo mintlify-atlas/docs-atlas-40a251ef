@@ -1,7 +1,7 @@
 ---
 title: "Simulation config JSON schema for AVL Tree Car Backend"
 sidebarTitle: "Configs JSON"
-description: "Full reference for the simulation configuration payload sent to POST /avl/add/configs — required fields, obstacle schema, validation rules, and error responses."
+description: "Full reference for POST /avl/add/configs — required fields, obstacle schema, validation rules, and error responses for the simulation config payload."
 ---
 
 The configs JSON is the primary way to seed the AVL tree with a complete set of obstacles in a single request. It combines simulation-wide settings (road length, car physics, update rate) with a batch list of obstacles to insert. The entire payload is validated server-side by `Utils.validate_json_configs()` before any inserts take place — if any required field is missing or malformed, the tree is left untouched and a 400 error is returned immediately.

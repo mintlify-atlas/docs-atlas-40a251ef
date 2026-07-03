@@ -1,7 +1,7 @@
 ---
-title: "How the AVL Tree works in AVL Tree Car Backend"
+title: "AVL Tree Implementation in the AVL Tree Car Backend"
 sidebarTitle: "AVL Tree"
-description: "Deep dive into the AVL self-balancing BST implementation: height tracking, balance factors, four rotation types, insertion, deletion, and traversal algorithms."
+description: "Deep dive into the AVL self-balancing BST: height tracking, balance factors, four rotation types, insertion, deletion, and traversal algorithms."
 ---
 
 The AVL tree is the central data structure of this backend. Because every insert, search, and delete runs in **O(log n)** — guaranteed by the self-balancing property — the server can keep road obstacles sorted by their `x`-coordinate and answer traversal queries efficiently regardless of how many obstacles are loaded. Without rebalancing, a degenerate insertion order (e.g., obstacles added left-to-right) would degrade the tree to a linked list with O(n) operations; the AVL rotations prevent that by keeping the tree height within ⌈log₂(n+1)⌉.
