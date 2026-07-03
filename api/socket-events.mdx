@@ -1,0 +1,324 @@
+---
+title: "Socket.IO Event Reference for the /AVLTree Namespace"
+sidebarTitle: "Socket Events"
+description: "Every Socket.IO event in the /AVLTree namespace: what to emit, what you receive back, payload shapes, and real client code examples."
+---
+
+The `/AVLTree` namespace exposes **8 events** — 2 lifecycle events managed automatically by the connection and 6 operational events your client actively triggers. All responses follow the [`ResponseSocket` envelope](/api/socket-overview#response-envelope): every emission carries `ok`, `received`, `message`, `data`, and `error` at the top level.
+
+---
+
+## `connect` → `connected`
+
+The Socket.IO transport fires `connect` the moment a client successfully opens a socket to `/AVLTree`. The server responds immediately with a `connected` event confirming the namespace is ready.
+
+**Client payload:** none — this is triggered by the transport layer, not a manual emit.
+
+**Server emits:** `connected`
+
+```json
+{
+  "ok": true,
+  "received": null,
+  "message": "The Socket is Connected, ready to use!",
+  "data": null,
+  "error": null
+}
+```
+
+```javascript
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:4500/AVLTree');
+
+socket.on('connected', (response) => {
+  if (response.ok) {
+    console.log('Namespace ready:', response.message);
+  }
+});
+```
+
+---
+
+## `disconnect` → `disconnected`
+
+Fired automatically when a client closes the connection or the transport drops. The server emits `disconnected` and then stops the Socket.IO server instance.
+
+**Client payload:** none — triggered by the transport layer.
+
+**Server emits:** `disconnected`
+
+```json
+{
+  "ok": true,
+  "received": null,
+  "message": "The has been disconneted!",
+  "data": null,
+  "error": null
+}
+```
+
+<Warning>
+  When a client disconnects, the server calls `socketio.stop()`. In a single-client development setup this terminates the server process. In production, configure the server to support multiple concurrent clients before relying on this behaviour.
+</Warning>
+
+```javascript
+socket.on('disconnected', (response) => {
+  console.log('Server acknowledged disconnect:', response.message);
+});
+```
+
+---
+
+## `get_tree_avl` → `avl_tree_balanced`
+
+Request the current state of the AVL tree. The server serialises the entire tree into a nested `{id, children}` structure and returns it in `data`.
+
+**Client payload:** any value (the message is echoed back in `received` but is not used by the server).
+
+**Server emits:** `avl_tree_balanced`
+
+<ResponseField name="data" type="object | null">
+  The serialised tree produced by `AVLTree.to_dict()`. Each node is `{"id": "<8-char ID>", "children": [...]}`. `null` when the tree is empty.
+</ResponseField>
+
+```json
+{
+  "ok": true,
+  "received": "get",
+  "message": "This is the tree by moment!",
+  "data": {
+    "id": "0A2B4C6D",
+    "children": [
+      { "id": "1X3Y5Z7W", "children": [] },
+      { "id": "2P4Q6R8S" }
+    ]
+  },
+  "error": null
+}
+```
+
+```javascript
+socket.emit('get_tree_avl', 'get');
+
+socket.on('avl_tree_balanced', (response) => {
+  if (response.ok) {
+    console.log('Current tree:', response.data);
+    // response.data is { id: '...', children: [...] } or null
+  }
+});
+```
+
+---
+
+## `reset_avl` → `avl_reseted`
+
+Reset the AVL tree to an empty state. All nodes are removed and the root is set to `null`. The server responds with `avl_reseted` carrying the now-empty tree.
+
+**Client payload:** any value.
+
+**Server emits:** `avl_reseted`
+
+<ResponseField name="data" type="null">
+  Always `null` after a reset because the tree root is `None`.
+</ResponseField>
+
+```json
+{
+  "ok": true,
+  "received": "reset",
+  "message": "OK",
+  "data": null,
+  "error": null
+}
+```
+
+```javascript
+socket.emit('reset_avl', 'reset');
+
+socket.on('avl_reseted', (response) => {
+  if (response.ok) {
+    console.log('Tree cleared. Data:', response.data); // null
+  }
+});
+```
+
+---
+
+## `remove_obstacle` → `avl_tree_balanced`
+
+Delete a specific obstacle node from the AVL tree. The server locates the node by its `(x, y)` coordinates, removes it, rebalances the tree, and returns the updated tree state. On failure the response has `ok: false` and an `error` message.
+
+**Client payload:**
+
+<ParamField body="x" type="float" required>
+  The horizontal position of the obstacle to remove. Must match an existing node's `x` value exactly.
+</ParamField>
+
+<ParamField body="y" type="float" required>
+  The vertical position of the obstacle to remove. Must match an existing node's `y` value exactly.
+</ParamField>
+
+<ParamField body="type_id" type="integer" required>
+  The obstacle type identifier (1–10). Used to reconstruct the `Obstacle` object for the tree search.
+</ParamField>
+
+**Server emits:** `avl_tree_balanced`
+
+```json
+{
+  "ok": true,
+  "received": { "x": 150.0, "y": 200.0, "type_id": 3 },
+  "message": "Obstacle removed!",
+  "data": {
+    "id": "0A2B4C6D",
+    "children": [
+      { "id": "1X3Y5Z7W" }
+    ]
+  },
+  "error": null
+}
+```
+
+<CodeGroup>
+
+```javascript Success
+socket.emit('remove_obstacle', { x: 150.0, y: 200.0, type_id: 3 });
+
+socket.on('avl_tree_balanced', (response) => {
+  if (response.ok) {
+    console.log('Obstacle removed. Updated tree:', response.data);
+  } else {
+    console.warn('Removal failed:', response.error);
+  }
+});
+```
+
+```javascript Error Response
+// When the obstacle coordinates don't match any node:
+// {
+//   ok: false,
+//   received: { x: 999, y: 999, type_id: 1 },
+//   message: "Error trying remove the obstacle!",
+//   data: null,
+//   error: null
+// }
+```
+
+</CodeGroup>
+
+---
+
+## `road_preorder` → `preorder`
+
+Stream all obstacle IDs in **preorder** traversal order (root → left subtree → right subtree). The server emits one `preorder` event per obstacle with a one-second delay between emissions.
+
+**Client payload:** any value.
+
+**Server emits:** `preorder` — one event per obstacle until all are sent.
+
+<Note>
+  The server emits each obstacle ID with a `time.sleep(1)` delay between them, so a tree with *n* nodes produces *n* events over *n* seconds. Each emission's `data` field is a **single obstacle ID string** (e.g. `"0A2B4C6D"`), not the full tree.
+</Note>
+
+```json
+{
+  "ok": true,
+  "received": "traverse",
+  "message": "OK",
+  "data": "0A2B4C6D",
+  "error": null
+}
+```
+
+```javascript
+const ids = [];
+socket.emit('road_preorder', 'traverse');
+
+socket.on('preorder', (response) => {
+  if (response.ok) {
+    ids.push(response.data); // single obstacle ID string
+    console.log('Next obstacle (preorder):', response.data);
+  }
+});
+```
+
+---
+
+## `road_inorder` → `inorder`
+
+Stream all obstacle IDs in **inorder** traversal order (left subtree → root → right subtree). Because the AVL tree is keyed on the obstacle's `x` coordinate, inorder traversal yields obstacle IDs **sorted by ascending horizontal position**.
+
+**Client payload:** any value.
+
+**Server emits:** `inorder` — one event per obstacle, one second apart.
+
+<Note>
+  The server emits each obstacle ID with a `time.sleep(1)` delay between them, so a tree with *n* nodes produces *n* events over *n* seconds. Each emission's `data` field is a **single obstacle ID string** representing one obstacle encountered along the road in sorted order.
+</Note>
+
+```json
+{
+  "ok": true,
+  "received": "traverse",
+  "message": "OK",
+  "data": "1X3Y5Z7W",
+  "error": null
+}
+```
+
+```javascript
+const ids = [];
+const socket = io('http://localhost:4500/AVLTree');
+
+socket.emit('road_inorder', 'traverse');
+
+socket.on('inorder', (response) => {
+  if (response.ok) {
+    ids.push(response.data); // obstacle ID string
+    console.log('Next obstacle:', response.data);
+  }
+});
+```
+
+---
+
+## `road_posorder` → `posorder`
+
+Stream all obstacle IDs in **posorder** traversal order (left subtree → right subtree → root). Useful for processing child nodes before their parent — for example, clearing leaf obstacles before interior ones.
+
+**Client payload:** any value.
+
+**Server emits:** `posorder` — one event per obstacle, one second apart.
+
+<Note>
+  The server emits each obstacle ID with a `time.sleep(1)` delay between them, so a tree with *n* nodes produces *n* events over *n* seconds. Each emission's `data` field is a **single obstacle ID string** for one obstacle in posorder sequence.
+</Note>
+
+```json
+{
+  "ok": true,
+  "received": "traverse",
+  "message": "OK",
+  "data": "2P4Q6R8S",
+  "error": null
+}
+```
+
+```javascript
+const ids = [];
+const socket = io('http://localhost:4500/AVLTree');
+
+socket.emit('road_posorder', 'traverse');
+
+socket.on('posorder', (response) => {
+  if (response.ok) {
+    ids.push(response.data); // obstacle ID string
+    console.log('Next obstacle (posorder):', response.data);
+  }
+});
+```
+
+<Tip>
+  To collect all IDs from any traversal before acting on them, push each `response.data` into an array and defer processing until no more events arrive — use a timeout that resets on every emission to detect when the stream has ended.
+</Tip>

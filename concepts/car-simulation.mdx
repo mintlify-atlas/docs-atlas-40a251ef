@@ -1,0 +1,129 @@
+---
+title: "Car simulation model and obstacle interaction"
+sidebarTitle: "Car Simulation"
+description: "Understand the Car entity, how the frontend simulation uses the AVL tree for obstacle ordering, and how traversal results drive the car animation loop."
+---
+
+The Flask + Socket.IO backend's role in the car simulation is deliberately minimal: it maintains the AVL tree of `Obstacle` objects sorted by `x`-coordinate, validates configuration payloads, and streams ordered obstacle lists back to the frontend over real-time Socket.IO events. The frontend owns the animation loop, renders the road, and controls when the car advances — the backend simply answers queries and mutates the tree in response to frontend actions.
+
+## Car Model
+
+The `Car` class is a lightweight data container. It holds just enough state for the backend to reason about a car on the road, but it does not drive any simulation tick — that responsibility lives entirely in the frontend.
+
+```python
+class Car:
+    def __init__(self, battery: int = 0, road_size: tuple[int, int] = (0, 0), velocity: float = 5):
+        self.velocity = velocity
+        self.battery = battery
+        self.collition_with_obstacle = False
+        self.pos_x = 100
+        self.pos_y = road_size[1] // 2
+
+    def run(self):
+        pass
+
+    def up(self):
+        pass
+
+    def down(self):
+        pass
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `velocity` | `float` | `5` | Travel speed used by the frontend animation |
+| `battery` | `int` | `0` | Car's remaining battery / health |
+| `collition_with_obstacle` | `bool` | `False` | Collision state flag |
+| `pos_x` | `int` | `100` | Initial horizontal position in pixels |
+| `pos_y` | `int` | `road_size[1] // 2` | Vertical centre of the road |
+
+<Note>
+  The `run`, `up`, and `down` methods are stubs on the backend. The actual movement and collision logic runs in the frontend. You can find the full simulation implementation in the [AVL Tree Car frontend repository](https://github.com/tutosrive/avl_tree_car_front).
+</Note>
+
+## How the Simulation Flows
+
+<Steps>
+  <Step title="Frontend sends simulation config">
+    The frontend POSTs to `/avl/add/configs` with a JSON body that includes a `configs` object (containing `total_distance`, `velocity`, `ms_update`, `jump_height`, and `car_colors`) and an `obstacles` array (each entry has `x`, `y`, and `type`).
+  </Step>
+  <Step title="Backend validates and inserts obstacles">
+    `Utils.validate_json_configs` checks that both `configs` and `obstacles` are present and that every required key exists. Any validation error is returned immediately. On success, the backend iterates the `obstacles` array and calls `AVLTree.insert(Obstacle(x, y, type_id))` for each entry, inserting them into the self-balancing tree.
+  </Step>
+  <Step title="Frontend requests an ordered traversal">
+    The frontend emits a Socket.IO event — `road_inorder`, `road_preorder`, or `road_posorder` — to request obstacles in the desired order. The inorder traversal is most commonly used because it returns obstacles sorted by ascending `x`-coordinate, matching the car's left-to-right travel direction.
+  </Step>
+  <Step title="Backend streams obstacle IDs one by one">
+    For each `Obstacle` in the traversal result list, the backend emits a Socket.IO event carrying the obstacle's `id` string, then waits approximately one second before emitting the next. This paced streaming lets the frontend synchronise each emission with the car's animated approach to that obstacle.
+  </Step>
+  <Step title="Frontend renders the car's approach">
+    As each obstacle ID arrives, the frontend looks up the obstacle's sprite, position, and damage value, and begins animating the car towards it. The `ms_update`, `velocity`, and `jump_height` config values control how fast the road scrolls, how the car moves, and how high the car jumps when avoiding an obstacle.
+  </Step>
+  <Step title="Frontend removes passed obstacles">
+    Once the car clears an obstacle, the frontend emits `remove_obstacle` with the obstacle's `(x, y)` coordinates. The backend calls `AVLTree.delete(Obstacle(x, y, type_id))`, rebalances the tree, and emits the updated serialised tree back to the frontend so the UI can reflect the new state.
+  </Step>
+</Steps>
+
+## Configs Payload Structure
+
+The JSON body sent to `POST /avl/add/configs` must contain both a `configs` object and an `obstacles` array. The `configs` section requires at minimum `total_distance` and `jump_height`; the obstacle entries each require `x`, `y`, and `type`. Additional optional fields (`velocity`, `ms_update`, `car_colors`) are passed through to the frontend.
+
+```json
+{
+  "configs": {
+    "total_distance": 1000,
+    "velocity": 10,
+    "ms_update": 200,
+    "jump_height": 40,
+    "car_colors": ["#F54927", "#8F2510", "#BD2C11"]
+  },
+  "obstacles": [
+    { "x": 100, "y": 20, "type": "rock" },
+    { "x": 760, "y": 10, "type": "trunk" }
+  ]
+}
+```
+
+The backend validation logic (from `others_utils.py`) enforces this shape before any obstacle is inserted:
+
+```python
+@classmethod
+def validate_json_configs(cls, data: dict) -> dict | None:
+    response: dict = {}
+    if not data:
+        return {'error': 'Missing data...'}
+
+    need_keys_configs = ['total_distance', 'jump_height']
+    need_keys_obstacles = ['x', 'y', 'type']
+
+    if not data.get('configs'):
+        return {'error': "Missing 'configs' section"}
+
+    missing_configs = [key for key in need_keys_configs if key not in data['configs']]
+    if missing_configs:
+        return {'error': f"Missing required config keys: {', '.join(missing_configs)}"}
+
+    if not data.get('obstacles'):
+        return {'error': "Missing 'obstacles' section"}
+
+    if not isinstance(data['obstacles'], list):
+        return {'error': "'obstacles' must be a list"}
+
+    for idx, obstacle in enumerate(data['obstacles']):
+        missing_keys = [key for key in need_keys_obstacles if key not in obstacle]
+        if missing_keys:
+            return {'error': f"Obstacle at index {idx} is missing keys: {', '.join(missing_keys)}"}
+
+    return data
+```
+
+## Reset Flow
+
+The frontend can emit the `reset_avl` Socket.IO event at any time — for example, when the user restarts the simulation or loads a new track. The backend calls `AVLTree.reset()`, which sets `self.root = None`, discarding the entire tree in O(1):
+
+```python
+def reset(self) -> None:
+    self.root = None
+```
+
+After a reset the tree is empty and ready to accept a fresh batch of obstacles from the next `/avl/add/configs` call.

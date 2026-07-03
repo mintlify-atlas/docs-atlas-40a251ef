@@ -1,0 +1,161 @@
+---
+title: "Project layout and architecture of AVL Tree Car Backend"
+sidebarTitle: "Project Structure"
+description: "Explore the directory layout, module responsibilities, and data flow of the AVL Tree Car Backend — from Flask entry point to AVL tree engine."
+---
+
+This page walks through the full directory layout of AVL Tree Car Backend, explains what each module is responsible for, and traces the two key lifecycles — an HTTP request and a Socket.IO event — from the moment they arrive at the server to the moment a response leaves it. Understanding this structure makes it straightforward to extend the AVL logic, add new routes, or wire up additional socket events.
+
+## Directory layout
+
+```text
+avl_tree_car/
+├── run.py                            # Entry point — starts Flask + SocketIO on localhost:4500
+├── requirements.txt                  # Pinned Python dependencies
+└── src/
+    ├── main.py                       # Main class: wires app, CORS, routers, sockets
+    ├── models/
+    │   ├── car.py                    # Car entity
+    │   ├── node.py                   # AVL tree node (value, left, right, parent, height)
+    │   ├── obstacle.py               # Obstacle value object (id, x, y, type_id)
+    │   ├── responses.py              # Response shapes: BaseFlaskResponse, ReturnModels, ResponseSocket
+    │   └── tree.py                   # AVLTree implementation (insert, delete, search, rotations)
+    ├── routers/
+    │   ├── Router.py                 # Base router — register_routes() helper wraps app.add_url_rule
+    │   ├── AVL_router.py             # /avl routes (home, node/add, node/remove, add/configs)
+    │   ├── Data_router.py            # /data routes (home, json/<filename>)
+    │   └── main_route.py             # / root route
+    ├── controllers/
+    │   ├── avl_controller.py         # AVL business logic — validates input, drives AVLTree methods
+    │   ├── data_controller.py        # File/data serving logic — reads src/data/ JSON assets
+    │   └── socket_avl_controller.py  # Socket event handlers — emits balanced tree and traversals
+    ├── sockets/
+    │   ├── socket_manager.py         # SocketManager extends SocketIO — event dispatch and emit helpers
+    │   └── socket_avl_tree.py        # Registers all /AVLTree namespace event handlers
+    ├── utils/
+    │   ├── files_utils.py            # File I/O helpers
+    │   ├── others_utils.py           # Tree serialisation, JSON config validation
+    │   └── randoms_utils.py          # Random ID and letter generation
+    └── data/
+        └── obstacles_types.json      # 10 obstacle type definitions with damage values
+```
+
+## Module breakdown
+
+### `run.py` — entry point
+
+`run.py` instantiates the `Main` class with `"*"` as the allowed CORS origin, then calls `main.socketio.run(main.app, host='localhost', port=4500, debug=True)`. It is the only file you need to execute directly; all other wiring happens inside `Main.__configs()`.
+
+---
+
+### `src/main.py` — the `Main` class
+
+`Main` is the composition root of the application. Its `__init__` creates the Flask app, instantiates a shared `AVLTree` and `Car` model, and immediately calls `__configs()`. Inside `__configs()` it applies CORS for all origins, constructs a `SocketManager`, registers socket handlers via `SocketAVLTree`, and mounts the three router classes (`MainRoute`, `AVLRouter`, `DataRouter`). Nothing else in the codebase reaches Flask directly — every registration flows through `Main`.
+
+---
+
+### `src/models/` — domain models
+
+<Note>
+  All models expose a `to_dict()` method so they can be serialised cleanly inside `jsonify()` or Socket.IO `emit()` calls without any extra transformation step in controllers.
+</Note>
+
+| File | Responsibility |
+|---|---|
+| `obstacle.py` | Value object for a single road obstacle. Holds `x`, `y`, `type_id`, and a randomly generated 8-character `id` created by `RandomsUtils`. |
+| `node.py` | A single AVL tree node wrapping an `Obstacle`. Tracks `left`, `right`, `parent`, and `height` pointers. |
+| `tree.py` | Full AVL tree implementation: `insert`, `delete`, `search`, `_rebalance`, `update_height`, `_rotate_left`, `_rotate_right`, and the three traversal generators. The tree is keyed on `obstacle.x`. |
+| `responses.py` | Three response shapes: `BaseFlaskResponse` for HTTP (status, ok, message, data, error), `ReturnModels` for internal controller returns, and `ResponseSocket` for Socket.IO emits. |
+| `car.py` | The car entity used by the simulation. |
+
+---
+
+### `src/routers/` — HTTP routing layer
+
+`Router` (base class) wraps `app.add_url_rule` and registers each URL twice — once without a trailing slash and once with — so both forms are accepted by Flask. Subclasses call `self.register_routes(url, handler, *methods)` and keep all route logic private to the class.
+
+- **`AVL_router.py`** mounts `GET /avl`, `POST /avl/node/add`, `POST /avl/node/remove`, and `POST /avl/add/configs`, forwarding each request body to `AVLController`.
+- **`Data_router.py`** mounts `GET /data` and `GET|POST /data/json/<filename>` for serving JSON assets from `src/data/`.
+- **`main_route.py`** mounts `GET /` and returns the health-check response `{"status": 200, "ok": true, "message": "Hello From Flask!"}`.
+
+---
+
+### `src/controllers/` — business logic layer
+
+Controllers receive validated request data from routers (or socket events), drive the appropriate model methods, and build the response object that gets serialised back to the caller.
+
+- **`avl_controller.py`** constructs an `Obstacle` from the request body, calls `AVLTree.insert()` or `AVLTree.delete()`, and maps the returned `ReturnModels` into a `BaseFlaskResponse`.
+- **`data_controller.py`** reads files from the `src/data/` folder and returns their JSON content directly.
+- **`socket_avl_controller.py`** handles socket-specific operations: it emits the current balanced tree after mutations (`get_tree_avl`), streams traversal results (`emit_road`), and resets the tree on `avl_reseted`.
+
+---
+
+### `src/sockets/` — Socket.IO layer
+
+`SocketManager` extends Flask-SocketIO's `SocketIO` class and adds a `register_handler` convenience method. Every event is routed through `handle_event`, which constructs a `ResponseSocket`, calls the provided callback (optionally passing the `emit` reference or extra arguments), and then emits the result back to the client — unless the callback takes control of `emit` itself (`need_control_emit=True`).
+
+`SocketAVLTree` sets the active namespace to `/AVLTree` and registers the following events on it:
+
+| Client emits | Server emits back | Handler |
+|---|---|---|
+| `connect` | `connected` | default connect handler |
+| `disconnect` | `disconnected` | default disconnect handler |
+| `reset_avl` | `avl_reseted` | `SocketAVLController.emit_avl_reseted` |
+| `remove_obstacle` | `avl_tree_balanced` | `SocketAVLController.emit_obstacle_removed` |
+| `get_tree_avl` | `avl_tree_balanced` | `SocketAVLController.get_tree_avl` |
+| `road_preorder` | `preorder` | `SocketAVLController.emit_road` |
+| `road_inorder` | `inorder` | `SocketAVLController.emit_road` |
+| `road_posorder` | `posorder` | `SocketAVLController.emit_road` |
+
+---
+
+### `src/utils/` — utility helpers
+
+- **`randoms_utils.py`** generates the random alphanumeric IDs assigned to each new `Obstacle`.
+- **`others_utils.py`** contains `Utils.validate_json_configs()` for validating bulk config payloads, and tree-to-dict serialisation helpers used before emitting tree state over sockets.
+- **`files_utils.py`** wraps file-system reads so controllers never touch `open()` directly.
+
+---
+
+### `src/data/obstacles_types.json` — obstacle catalogue
+
+Defines the ten obstacle types the simulation supports. The `type_id` field in an obstacle payload maps to one of these entries:
+
+```json
+[
+  { "id": 1,  "type": "Cone",    "damage": 0.5 },
+  { "id": 2,  "type": "Rock",    "damage": 1   },
+  { "id": 3,  "type": "Tree",    "damage": 10  },
+  { "id": 4,  "type": "Tire",    "damage": 5   },
+  { "id": 5,  "type": "Nail",    "damage": 4   },
+  { "id": 6,  "type": "Trunk",   "damage": 6   },
+  { "id": 7,  "type": "Person",  "damage": 3   },
+  { "id": 8,  "type": "Car",     "damage": 15  },
+  { "id": 9,  "type": "Bicycle", "damage": 7   },
+  { "id": 10, "type": "Chair",   "damage": 6   }
+]
+```
+
+---
+
+## Request lifecycle
+
+An inbound HTTP request travels through four discrete layers before a response is returned:
+
+1. **Flask router** — `AVLRouter`, `DataRouter`, or `MainRoute` matches the URL and HTTP method, then extracts the JSON body from `request.json` and passes it to the appropriate controller method.
+2. **Controller** — `AVLController` (or `DataController`) validates the incoming data, constructs the domain model objects (`Obstacle`, etc.), and calls the relevant `AVLTree` method.
+3. **AVLTree model** — performs the structural operation (insert, delete, search), runs height updates and rotations to restore the AVL invariant, and returns a `ReturnModels` result.
+4. **Response** — the controller maps `ReturnModels` into a `BaseFlaskResponse`, which is serialised to JSON by Flask's `jsonify()` and returned to the HTTP client.
+
+## Socket.IO event lifecycle
+
+Real-time events follow a similar path through the socket layer:
+
+1. **Client emits** — the browser frontend emits a named event (e.g., `get_tree_avl`) on the `/AVLTree` namespace with an optional message payload.
+2. **`SocketManager.handle_event`** — receives the raw message, constructs a `ResponseSocket`, and dispatches to the registered callback with the appropriate argument signature (with or without `emit` control).
+3. **`SocketAVLController` method** — drives the `AVLTree` model (e.g., serialises the current tree into a dict), writes the result into the `ResponseSocket`, and either calls `emit` directly (when `need_control_emit=True`) or returns so `handle_event` can emit automatically.
+4. **`emit` back** — the response dict is pushed to the client under the configured emit-event name (e.g., `avl_tree_balanced`), still scoped to the `/AVLTree` namespace.
+
+<Note>
+  The `SocketManager.namespace` property is mutated to `/AVLTree` by `SocketAVLTree` at startup. Basic connection events (`connect`, `disconnect`) remain on the default `/` namespace, while all AVL tree events operate on `/AVLTree`.
+</Note>

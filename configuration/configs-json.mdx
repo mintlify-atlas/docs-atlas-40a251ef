@@ -1,0 +1,192 @@
+---
+title: "Simulation config JSON schema for AVL Tree Car Backend"
+sidebarTitle: "Configs JSON"
+description: "Full reference for the simulation configuration payload sent to POST /avl/add/configs — required fields, obstacle schema, validation rules, and error responses."
+---
+
+The configs JSON is the primary way to seed the AVL tree with a complete set of obstacles in a single request. It combines simulation-wide settings (road length, car physics, update rate) with a batch list of obstacles to insert. The entire payload is validated server-side by `Utils.validate_json_configs()` before any inserts take place — if any required field is missing or malformed, the tree is left untouched and a 400 error is returned immediately.
+
+## Full JSON structure
+
+The example below is the canonical test payload from the project README. Post this to `POST /avl/add/configs` to seed the AVL tree with eight obstacles across a 1 000-unit road.
+
+```json
+{
+  "configs": {
+    "total_distance": 1000,
+    "velocity": 10,
+    "ms_update": 200,
+    "jump_height": 40,
+    "car_colors": ["#F54927", "#8F2510", "#BD2C11"]
+  },
+  "obstacles": [
+    { "x": 100, "y": 20, "type": "rock" },
+    { "x": 760, "y": 10, "type": "trunk" },
+    { "x": 990, "y": 50, "type": "nail" },
+    { "x": 560, "y": 12, "type": "cone" },
+    { "x": 780, "y": 15, "type": "tire" },
+    { "x": 360, "y": 45, "type": "tree" },
+    { "x": 550, "y": 20, "type": "chair" },
+    { "x": 140, "y": 10, "type": "person" }
+  ]
+}
+```
+
+## `configs` object fields
+
+The `configs` object carries simulation-wide parameters. `total_distance` and `jump_height` are the only two fields validated as required by the server; the remaining fields are consumed by the frontend.
+
+<ParamField body="total_distance" type="number" required>
+  Total road length in units. Defines the span of the simulation track that the car travels.
+</ParamField>
+
+<ParamField body="jump_height" type="number" required>
+  Maximum jump height for the car in units. Used by the frontend to calculate jump clearance over obstacles.
+</ParamField>
+
+<ParamField body="velocity" type="number">
+  Car speed in units per tick. Controls how fast the car advances along the road each update cycle.
+</ParamField>
+
+<ParamField body="ms_update" type="number">
+  Frontend update interval in milliseconds. Determines how frequently the simulation state is re-rendered on the client side.
+</ParamField>
+
+<ParamField body="car_colors" type="array of strings">
+  Hex color codes used to tint the car sprite (e.g. `["#F54927", "#8F2510", "#BD2C11"]`). The frontend cycles through these values for visual variety.
+</ParamField>
+
+## `obstacles` array
+
+Each element of the `obstacles` array describes one road obstacle to insert into the AVL tree. The server iterates the list, constructs an `Obstacle` object for each entry, and attempts an AVL insert. Successfully inserted obstacles are tracked by the auto-generated random ID assigned at construction time.
+
+<ParamField body="x" type="number" required>
+  Horizontal position of the obstacle on the road, measured in road units from the start of the track.
+</ParamField>
+
+<ParamField body="y" type="number" required>
+  Vertical position or height of the obstacle in units. Used by the frontend to determine collision geometry.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Obstacle type name in lowercase (e.g. `"rock"`, `"cone"`, `"tire"`). Must match one of the ten type names defined in `obstacles_types.json`. See [Obstacle Types](/configuration/obstacle-types) for the full list.
+</ParamField>
+
+<Note>
+  The configs JSON uses the string `type` field (e.g. `"rock"`). Direct single-node calls to `POST /avl/node/add` use `type_id` (the numeric ID) instead. See [Obstacle Types](/configuration/obstacle-types) for the mapping between names and IDs.
+</Note>
+
+## Validation rules
+
+The server runs all checks in sequence and returns on the first failure. No obstacles are inserted until the entire payload passes validation.
+
+<Warning>
+  **Missing `configs` section** — If the top-level `configs` key is absent, the server returns `400` with `error: "Missing 'configs' section"`. No inserts are attempted.
+</Warning>
+
+<Warning>
+  **Missing `total_distance` or `jump_height`** — Both keys are required inside `configs`. If either is absent, the server returns `400` with `error: "Missing required config keys: <key>"`.
+</Warning>
+
+<Warning>
+  **Missing `obstacles` section** — If the top-level `obstacles` key is absent, the server returns `400` with `error: "Missing 'obstacles' section"`. No inserts are attempted.
+</Warning>
+
+<Warning>
+  **`obstacles` must be a list** — If `obstacles` is present but is not a JSON array, the server returns `400` with `error: "'obstacles' must be a list"`.
+</Warning>
+
+<Warning>
+  **Each obstacle must have `x`, `y`, and `type`** — If any element of the array is missing one or more required keys, the server returns `400` with `error: "Obstacle at index <n> is missing keys: <keys>"`, where `<n>` is the zero-based index of the offending entry.
+</Warning>
+
+<Warning>
+  **All obstacles are duplicates** — If the payload is structurally valid but every obstacle already exists in the AVL tree (all inserts fail), the server returns `ok: false` with `status: 400`. Partially successful batches (at least one new insert) return `status: 200` with only the successfully inserted IDs in `data`.
+</Warning>
+
+## Response shape
+
+A successful request returns `status: 200` with the list of auto-generated IDs for every obstacle that was newly inserted. A failed request returns `status: 400` or `status: 500` with details in `error`.
+
+<ResponseField name="status" type="integer">
+  HTTP-style status code embedded in the JSON body. `200` on success, `400` on validation or duplicate errors, `500` on an unexpected server error.
+</ResponseField>
+
+<ResponseField name="ok" type="boolean">
+  `true` when at least one obstacle was inserted successfully; `false` on any error.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable result message, e.g. `"The configurations has been added succesfully!"` on success or `"There are some errors in the sent data!"` on a validation failure.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  List of obstacle IDs (random 8-character strings) that were successfully inserted into the AVL tree. Empty on failure. Each ID uniquely identifies an `Obstacle` node and is used to reference that node in subsequent operations.
+</ResponseField>
+
+<ResponseField name="error" type="any">
+  Error details on failure. Contains the validation error string (e.g. `"Missing 'configs' section"`) or the exception message on a server error. `null` on success.
+</ResponseField>
+
+## Example request
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:5000/avl/add/configs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "configs": {
+      "total_distance": 1000,
+      "velocity": 10,
+      "ms_update": 200,
+      "jump_height": 40,
+      "car_colors": ["#F54927", "#8F2510", "#BD2C11"]
+    },
+    "obstacles": [
+      { "x": 100, "y": 20, "type": "rock" },
+      { "x": 760, "y": 10, "type": "trunk" },
+      { "x": 990, "y": 50, "type": "nail" },
+      { "x": 560, "y": 12, "type": "cone" },
+      { "x": 780, "y": 15, "type": "tire" },
+      { "x": 360, "y": 45, "type": "tree" },
+      { "x": 550, "y": 20, "type": "chair" },
+      { "x": 140, "y": 10, "type": "person" }
+    ]
+  }'
+```
+</CodeGroup>
+
+**Success response (200)**
+
+```json
+{
+  "status": 200,
+  "ok": true,
+  "message": "The configurations has been added succesfully!",
+  "data": [
+    "a3f9b1c2",
+    "d7e4a890",
+    "c1b2f3d4",
+    "e5a6c7b8",
+    "f0d1e2a3",
+    "b4c5d6e7",
+    "a8f9b0c1",
+    "d2e3a4b5"
+  ],
+  "error": null
+}
+```
+
+**Validation error response (400)**
+
+```json
+{
+  "status": 400,
+  "ok": false,
+  "message": "There are some errors in the sent data!",
+  "data": null,
+  "error": "Missing required config keys: jump_height"
+}
+```
+
+For the full list of endpoints and their HTTP methods, see the [AVL Endpoints](/api/avl-endpoints) reference.

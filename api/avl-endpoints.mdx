@@ -1,0 +1,281 @@
+---
+title: "AVL tree REST endpoints: add, remove, and configure nodes"
+sidebarTitle: "AVL Endpoints"
+description: "Complete reference for POST /avl/node/add, POST /avl/node/remove, and POST /avl/add/configs — request bodies, responses, and curl examples."
+---
+
+The `/avl` routes are the primary HTTP interface for managing the AVL tree's obstacle nodes. Every mutating operation triggers a rebalance of the self-balancing binary search tree on the server, keeping obstacle lookups efficient regardless of insertion order. All routes support an optional trailing slash and accept `Content-Type: application/json` on `POST` requests.
+
+---
+
+## GET /avl
+
+Returns a welcome message confirming the AVL section is reachable.
+
+**No request body.**
+
+**Response 200**
+
+```json
+{
+  "status": 200,
+  "ok": true,
+  "message": "Welcome to AVL section!",
+  "data": {},
+  "error": null
+}
+```
+
+---
+
+## POST /avl/node/add
+
+Inserts a new obstacle node into the AVL tree at road coordinates `(x, y)`. If a node at those coordinates already exists the server rejects the request with `400`.
+
+### Request body
+
+<ParamField body="x" type="number" required>
+  Horizontal road position of the obstacle (float).
+</ParamField>
+
+<ParamField body="y" type="number" required>
+  Vertical position / height of the obstacle (float).
+</ParamField>
+
+<ParamField body="type_id" type="integer" required>
+  Obstacle type identifier. Must correspond to a valid entry in the obstacle types list (integers 1–10). See [GET /data/json/obstacles_types.json](/api/data-endpoints#get-datajsonfilename) for the full catalogue.
+</ParamField>
+
+### Responses
+
+<ResponseField name="status" type="integer">
+  `200` on success, `400` if the node already exists, `500` on a server exception.
+</ResponseField>
+
+<ResponseField name="ok" type="boolean">
+  `true` when the obstacle was inserted successfully.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  On success: `"The node with coordinates (x, y) has been added successfully!"` — with the actual coordinate values substituted. On failure: a human-readable reason.
+</ResponseField>
+
+<ResponseField name="data" type="string">
+  The generated obstacle ID (an 8-character random string) on success; `{}` on failure.
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  `null` on success; exception message on a `500` error.
+</ResponseField>
+
+### curl example
+
+<CodeGroup>
+```bash Request
+curl -X POST http://localhost:4500/avl/node/add \
+  -H "Content-Type: application/json" \
+  -d '{"x": 100, "y": 20, "type_id": 2}'
+```
+
+```json Success 200
+{
+  "status": 200,
+  "ok": true,
+  "message": "The node with coordinates (100, 20) has been added successfully!",
+  "data": "a3fG9kLm",
+  "error": null
+}
+```
+
+```json Duplicate 400
+{
+  "status": 400,
+  "ok": false,
+  "message": "Node with coordinates (100, 20) already exists.",
+  "data": {},
+  "error": null
+}
+```
+</CodeGroup>
+
+<Note>
+  The `data` field on a successful insertion holds the auto-generated obstacle ID. Store this value if you need to reference the obstacle later.
+</Note>
+
+---
+
+## POST /avl/node/remove
+
+Deletes the obstacle node located at `(x, y)` from the AVL tree and rebalances the tree automatically. The server constructs an `Obstacle` object from the body to locate the node; the search is performed by coordinates.
+
+### Request body
+
+<ParamField body="x" type="number" required>
+  Horizontal road position of the obstacle to remove.
+</ParamField>
+
+<ParamField body="y" type="number" required>
+  Vertical position of the obstacle to remove.
+</ParamField>
+
+<ParamField body="type_id" type="integer" required>
+  Obstacle type ID used to construct the lookup object. Must match the `type_id` of the existing node.
+</ParamField>
+
+### Responses
+
+<ResponseField name="status" type="integer">
+  `200` on success, `400` if the node was not found or removal failed, `500` on a server exception.
+</ResponseField>
+
+<ResponseField name="ok" type="boolean">
+  `true` when the obstacle was removed and the tree was rebalanced.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  `"Obstacle removed!"` on success; a descriptive failure message otherwise.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  `{}` — no payload is returned on removal.
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  `null` on success; exception message on a `500` error.
+</ResponseField>
+
+### curl example
+
+<CodeGroup>
+```bash Request
+curl -X POST http://localhost:4500/avl/node/remove \
+  -H "Content-Type: application/json" \
+  -d '{"x": 100, "y": 20, "type_id": 2}'
+```
+
+```json Success 200
+{
+  "status": 200,
+  "ok": true,
+  "message": "Obstacle removed!",
+  "data": {},
+  "error": null
+}
+```
+
+```json Not Found 400
+{
+  "status": 400,
+  "ok": false,
+  "message": "Node with coordinates (100, 20) not found.",
+  "data": {},
+  "error": null
+}
+```
+</CodeGroup>
+
+---
+
+## POST /avl/add/configs
+
+Validates and bulk-inserts a full simulation configuration that includes multiple obstacles at once. The server checks required keys before any insertion; if validation passes, each obstacle is inserted individually and only successfully inserted IDs are returned. If all insertions fail (e.g., all nodes are duplicates), the endpoint returns `400`.
+
+### Request body
+
+The body must contain two top-level keys: `configs` and `obstacles`.
+
+<ParamField body="configs" type="object" required>
+  Simulation-level settings. Must include:
+  - `total_distance` — total road distance for the simulation run
+  - `jump_height` — maximum jump height allowed for the car
+</ParamField>
+
+<ParamField body="obstacles" type="array" required>
+  Array of obstacle objects. Each element must include:
+  - `x` — horizontal position (float)
+  - `y` — vertical position (float)
+  - `type` — obstacle type name (string, e.g. `"Rock"`)
+  - `type_id` — obstacle type ID (integer 1–10)
+</ParamField>
+
+### Minimal example body
+
+```json
+{
+  "configs": {
+    "total_distance": 5000,
+    "jump_height": 3.5
+  },
+  "obstacles": [
+    { "x": 150.0, "y": 10.0, "type": "Rock",  "type_id": 2 },
+    { "x": 300.0, "y": 5.0,  "type": "Cone",  "type_id": 1 },
+    { "x": 450.0, "y": 8.0,  "type": "Nail",  "type_id": 5 }
+  ]
+}
+```
+
+### Responses
+
+<ResponseField name="status" type="integer">
+  `200` on success, `400` on validation failure or if every obstacle insertion was rejected.
+</ResponseField>
+
+<ResponseField name="ok" type="boolean">
+  `true` when at least one obstacle was inserted successfully.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  `"The configurations has been added succesfully!"` on success; `"There are some errors in the sent data!"` on a validation failure.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of auto-generated obstacle IDs for every successfully inserted node. Nodes that were already present in the tree are silently skipped and not included.
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  `null` on success; a validation error description on `400`.
+</ResponseField>
+
+### curl example
+
+<CodeGroup>
+```bash Request
+curl -X POST http://localhost:4500/avl/add/configs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "configs": { "total_distance": 5000, "jump_height": 3.5 },
+    "obstacles": [
+      { "x": 150.0, "y": 10.0, "type": "Rock", "type_id": 2 },
+      { "x": 300.0, "y": 5.0,  "type": "Cone", "type_id": 1 }
+    ]
+  }'
+```
+
+```json Success 200
+{
+  "status": 200,
+  "ok": true,
+  "message": "The configurations has been added succesfully!",
+  "data": ["a3fG9kLm", "bZ7pQwNx"],
+  "error": null
+}
+```
+
+```json Validation Error 400
+{
+  "status": 400,
+  "ok": false,
+  "message": "There are some errors in the sent data!",
+  "data": {},
+  "error": "Missing required config keys: total_distance"
+}
+```
+</CodeGroup>
+
+<Warning>
+  If every obstacle in the list is already present in the tree (all insertions return duplicates), the endpoint returns `400` even though the request body itself is structurally valid. Partial success — some obstacles inserted, some skipped — returns `200` with only the new IDs in `data`.
+</Warning>
+
+<Tip>
+  Trailing slash variants (`/avl/node/add/`, `/avl/node/remove/`, `/avl/add/configs/`) are registered automatically by the router and behave identically to their non-slash counterparts.
+</Tip>

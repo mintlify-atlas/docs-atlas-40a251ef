@@ -1,0 +1,82 @@
+---
+title: "Obstacle types and damage values in AVL Tree Car simulation"
+sidebarTitle: "Obstacle Types"
+description: "Reference for all ten obstacle types served by GET /data/json/obstacles_types.json — including numeric IDs, type names, and damage values used by the frontend."
+---
+
+The backend ships a static `obstacles_types.json` file that defines the ten obstacle types available in the simulation. The frontend fetches this file at startup to know which sprite to render for each obstacle node and how much damage a collision with that obstacle inflicts on the car's battery. Every obstacle inserted into the AVL tree carries a `type_id` that maps directly to one of these ten entries.
+
+## How to fetch
+
+The file is served as a static JSON asset at `GET /data/json/obstacles_types.json`. No authentication is required.
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:5000/data/json/obstacles_types.json
+```
+</CodeGroup>
+
+**Response**
+
+```json
+[
+  { "id": 1,  "type": "Cone",    "damage": 0.5 },
+  { "id": 2,  "type": "Rock",    "damage": 1   },
+  { "id": 3,  "type": "Tree",    "damage": 10  },
+  { "id": 4,  "type": "Tire",    "damage": 5   },
+  { "id": 5,  "type": "Nail",    "damage": 4   },
+  { "id": 6,  "type": "Trunk",   "damage": 6   },
+  { "id": 7,  "type": "Person",  "damage": 3   },
+  { "id": 8,  "type": "Car",     "damage": 15  },
+  { "id": 9,  "type": "Bicycle", "damage": 7   },
+  { "id": 10, "type": "Chair",   "damage": 6   }
+]
+```
+
+## Obstacle types
+
+The table below lists all ten obstacle types, their numeric IDs, and the damage value each one inflicts on the car upon collision.
+
+| ID | Type    | Damage |
+|----|---------|--------|
+| 1  | Cone    | 0.5    |
+| 2  | Rock    | 1      |
+| 3  | Tree    | 10     |
+| 4  | Tire    | 5      |
+| 5  | Nail    | 4      |
+| 6  | Trunk   | 6      |
+| 7  | Person  | 3      |
+| 8  | Car     | 15     |
+| 9  | Bicycle | 7      |
+| 10 | Chair   | 6      |
+
+## Using `type_id` in API requests
+
+When adding a single obstacle node directly via `POST /avl/node/add`, send the numeric `type_id` field rather than the string type name. The server constructs an `Obstacle` object using the `(x, y, type_id)` tuple and inserts it into the AVL tree.
+
+```json
+{ "x": 100, "y": 20, "type_id": 2 }
+```
+
+The request above inserts a **Rock** (ID 2) at position `x: 100, y: 20`. The same numeric ID is used for `POST /avl/node/remove` to identify the obstacle to delete.
+
+<Note>
+  There are two different field names depending on which endpoint you call:
+
+  - **`type`** (string, e.g. `"rock"`) — used in the `obstacles` array of the `POST /avl/add/configs` batch payload.
+  - **`type_id`** (integer, e.g. `2`) — used in `POST /avl/node/add` and `POST /avl/node/remove` for single-node operations.
+
+  Always check which endpoint you are calling to use the correct field name. Mixing them up will cause the server to construct an `Obstacle` with a `None` value for the missing field.
+</Note>
+
+## Damage values
+
+Damage values are consumed exclusively by the frontend for collision handling. When the car sprite overlaps an obstacle's collider rectangle, the frontend looks up the `damage` value for that obstacle's `type_id` and subtracts it from the car's battery level. Higher damage means a steeper battery drain per collision:
+
+- **Low damage** (0.5 – 1): Cone, Rock — minor road debris, barely affects the run.
+- **Medium damage** (3 – 7): Person, Nail, Tire, Chair, Trunk, Bicycle — significant hazards that require active avoidance.
+- **High damage** (10 – 15): Tree, Car — critical obstacles; a single hit can end the simulation run.
+
+The backend does not apply damage itself — it only stores and serves obstacle data through the AVL tree. All physics and collision resolution happen on the frontend using these values.
+
+For the complete list of REST endpoints, see the [AVL Endpoints](/api/avl-endpoints) and [Data Endpoints](/api/data-endpoints) references.

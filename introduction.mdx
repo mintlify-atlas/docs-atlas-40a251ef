@@ -1,0 +1,52 @@
+---
+title: "AVL Tree Car Backend: Flask AVL tree obstacle server"
+sidebarTitle: "Introduction"
+description: "AVL Tree Car Backend provides a self-balancing AVL tree over HTTP and Socket.IO to power a browser-based car obstacle simulation. Learn what it does and how it's organized."
+---
+
+AVL Tree Car Backend is a Python server built with Flask and Flask-SocketIO that manages a self-balancing AVL binary search tree of road obstacles. Each node in the tree represents a positioned obstacle on a simulated road — defined by an `x` coordinate (position along the road), a `y` coordinate (height), and one of ten typed obstacle values. The server exposes a REST API for inserting, removing, and bulk-loading obstacles, and a Socket.IO namespace (`/AVLTree`) for pushing real-time tree-state events to connected browser clients.
+
+## Why it exists
+
+This project was built as a university **Data Structures** assignment. The accompanying [ATC Frontend](https://github.com/tutosrive/avl_tree_car_front) renders a car driving down a procedurally generated road and needs a reliable backend to maintain the ordered set of obstacles, enforce uniqueness by `x` position, and stream the balanced tree back to the canvas after every mutation. The backend owns all AVL logic — rotations, height tracking, and traversals — so the frontend can stay focused on rendering.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="AVL Self-Balancing BST" icon="binary">
+    Inserts and deletes trigger automatic height recalculation and left/right rotations to keep the tree balanced. Duplicate `x` coordinates are rejected with a `400` response.
+  </Card>
+  <Card title="Three Traversal Orders" icon="route">
+    Query the full obstacle road via **inorder**, **preorder**, or **posorder** traversals, each exposed as a dedicated Socket.IO event on the `/AVLTree` namespace.
+  </Card>
+  <Card title="REST API for Node Management" icon="code">
+    `POST /avl/node/add`, `POST /avl/node/remove`, and `POST /avl/add/configs` let you build, modify, and bulk-load the obstacle tree over plain HTTP.
+  </Card>
+  <Card title="Socket.IO Real-Time Events" icon="bolt">
+    The `/AVLTree` namespace emits `avl_tree_balanced`, `preorder`, `inorder`, `posorder`, and `avl_reseted` events so the frontend always receives the live tree state.
+  </Card>
+  <Card title="10 Typed Obstacles with Damage" icon="triangle-exclamation">
+    Obstacles are one of: Cone (0.5), Rock (1), Tree (10), Tire (5), Nail (4), Trunk (6), Person (3), Car (15), Bicycle (7), or Chair (6). Damage values are defined in `src/data/obstacles_types.json`.
+  </Card>
+  <Card title="CORS-Enabled on localhost:4500" icon="globe">
+    Flask-CORS is configured for all origins (`*`) by default, so the frontend can run on any local port without proxy workarounds. The server binds to `localhost:4500`.
+  </Card>
+</CardGroup>
+
+## Tech stack
+
+| Package | Version | Role |
+|---|---|---|
+| [Flask](https://flask.palletsprojects.com/) | 3.1.2 | HTTP application framework and router |
+| [flask-cors](https://flask-cors.readthedocs.io/) | 6.0.1 | Cross-Origin Resource Sharing middleware |
+| [Flask-SocketIO](https://flask-socketio.readthedocs.io/) | 5.5.1 | WebSocket / Socket.IO integration |
+| [chromologger](https://pypi.org/project/chromologger/) | 0.1.9.post2 | Coloured console logging |
+| Python | 3 | Runtime |
+
+## Backend only
+
+<Note>
+  This repository is the **server only**. It has no UI of its own — all visual output lives in the ATC Frontend. You must start this backend before launching the frontend, otherwise the canvas will have no obstacle data to render.
+
+  Frontend repo: [github.com/tutosrive/avl_tree_car_front](https://github.com/tutosrive/avl_tree_car_front)
+</Note>

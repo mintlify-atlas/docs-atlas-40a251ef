@@ -1,47 +1,134 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get started with AVL Tree Car Backend"
+sidebarTitle: "Quickstart"
+description: "Clone the AVL Tree Car Backend repo, install dependencies, and run the Flask server in under five minutes. Includes a first API call example."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+By the end of this guide you'll have the AVL Tree Car Backend running on `localhost:4500`, have confirmed the root endpoint responds correctly, and have inserted your first obstacle node into the AVL tree — everything the [ATC Frontend](https://github.com/tutosrive/avl_tree_car_front) needs to connect and render a live simulation.
 
 ## Prerequisites
 
-Before you begin, you must have:
+- **Python 3** installed and available on your `PATH` (`python --version` or `py --version` on Windows)
+- `pip` available for installing packages
+- `git` for cloning the repository
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+## Setup
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Clone the repository">
+    Clone the project from GitHub and move into the new directory.
 
     ```bash
-    npm install your-package
+    git clone https://github.com/tutosrive/avl_tree_car.git
+    cd avl_tree_car
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
 
-    ```bash
-    your-cli init
-    ```
+  <Step title="Create a virtual environment (optional but recommended)">
+    Isolating dependencies in a virtual environment prevents version conflicts with other Python projects on your machine.
+
+    <CodeGroup>
+      ```bash Unix / macOS
+      python -m venv .venv
+      source .venv/bin/activate
+      ```
+
+      ```powershell Windows
+      python -m venv .venv
+      .venv\Scripts\activate
+      ```
+    </CodeGroup>
+
+    Your prompt will change to show `(.venv)` when the environment is active.
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Install dependencies">
+    Install the four required packages from `requirements.txt`.
 
     ```bash
-    your-cli start
+    pip install -r requirements.txt
     ```
+
+    This installs Flask 3.1.2, flask-cors 6.0.1, Flask-SocketIO 5.5.1, and chromologger 0.1.9.post2.
+  </Step>
+
+  <Step title="Start the server">
+    Run the entry-point script to start the Flask + Socket.IO server.
+
+    ```bash
+    python run.py
+    ```
+
+    The server starts on `localhost:4500`. You should see Socket.IO and Flask startup output in your terminal confirming the server is ready to accept connections.
+
+    <Note>
+      The server runs with `debug=True` by default (set in `run.py`). This enables Flask's auto-reloader and detailed tracebacks. **Do not expose this server publicly** or use `debug=True` in any production-like environment.
+    </Note>
+  </Step>
+
+  <Step title="Verify the server is running">
+    Open a new terminal and send a `GET` request to the root endpoint.
+
+    ```bash
+    curl http://localhost:4500/
+    ```
+
+    You should receive:
+
+    ```json
+    {
+      "status": 200,
+      "ok": true,
+      "message": "Hello From Flask!",
+      "data": {},
+      "error": null
+    }
+    ```
+
+    A `200 ok: true` response confirms Flask is serving requests correctly.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Your first API call
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+With the server running, insert an obstacle node into the AVL tree by posting to `POST /avl/node/add`. The request body requires the obstacle's road position (`x`), height (`y`), and a numeric type identifier (`type_id` 1–10).
+
+```bash
+curl -X POST http://localhost:4500/avl/node/add \
+  -H "Content-Type: application/json" \
+  -d '{"x": 100, "y": 20, "type_id": 1}'
+```
+
+A successful insert returns the generated obstacle ID in `data`:
+
+```json
+{
+  "status": 200,
+  "ok": true,
+  "message": "The node with coordinates (100, 20) has been added successfully!",
+  "data": "a3Bf9z1Q",
+  "error": null
+}
+```
+
+If you attempt to insert a second obstacle at the same `x` position, the AVL tree rejects it with `ok: false` and a `400` status — duplicate `x` coordinates are not allowed because the tree is keyed on road position.
+
+## Bulk-loading with configs.json
+
+<Tip>
+  Rather than inserting obstacles one by one, you can POST a full `configs.json` to `POST /avl/add/configs` to seed the tree with a set of obstacles and simulation parameters in one request. Download the sample file from the README to get a pre-built configuration with eight obstacles spanning the road.
+
+  Sample: [configs.json](https://github.com/user-attachments/files/22607038/configs.json)
 </Tip>
+
+```bash
+curl -X POST http://localhost:4500/avl/add/configs \
+  -H "Content-Type: application/json" \
+  -d @configs.json
+```
+
+## Next steps
+
+- Review the full HTTP and Socket.IO endpoint reference in the [API Overview](/api/overview).
+- Understand how modules are wired together in [Project Structure](/project-structure).
+- Connect the [ATC Frontend](https://github.com/tutosrive/avl_tree_car_front) to this backend and watch the obstacle simulation run in the browser.

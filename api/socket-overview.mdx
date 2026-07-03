@@ -1,0 +1,114 @@
+---
+title: "Socket.IO Integration Guide for AVL Tree Car Backend"
+sidebarTitle: "Socket Overview"
+description: "Connect to the AVL Tree Car Backend via Socket.IO: namespaces, connection lifecycle, response format, and how to set up a client in JavaScript or Python."
+---
+
+The AVL Tree Car Backend uses **Flask-SocketIO** to push real-time AVL tree updates to connected clients. Instead of polling a REST endpoint, clients open a persistent Socket.IO connection and receive tree state changes the moment they happen — insertions, deletions, rebalances, and traversal streams all arrive as events. The primary namespace for all tree operations is `/AVLTree`; the root namespace `/` handles the bare connection lifecycle.
+
+## Namespaces
+
+The server exposes two Socket.IO namespaces, each with a distinct responsibility.
+
+| Namespace | Purpose |
+|-----------|---------|
+| `/` | Connection lifecycle only — emits `connected` on open and `disconnected` on close |
+| `/AVLTree` | All AVL tree operations: read state, reset, remove obstacle, stream traversals |
+
+Connect directly to `/AVLTree` for any tree work. The root namespace is managed automatically by the server's `SocketManager` and requires no manual interaction from tree clients.
+
+## Connecting
+
+<CodeGroup>
+
+```javascript JavaScript (socket.io-client)
+import { io } from 'socket.io-client';
+
+// Connect to the AVLTree namespace
+const socket = io('http://localhost:4500/AVLTree');
+
+socket.on('connect', () => {
+  console.log('Connected to AVL tree namespace');
+});
+
+// Server confirms the connection is ready
+socket.on('connected', (data) => {
+  console.log(data);
+  // {
+  //   ok: true,
+  //   received: null,
+  //   message: 'The Socket is Connected, ready to use!',
+  //   data: null,
+  //   error: null
+  // }
+});
+```
+
+```python Python (python-socketio)
+import socketio
+
+sio = socketio.Client()
+
+@sio.on('connected', namespace='/AVLTree')
+def on_connected(data):
+    print(data)
+    # {
+    #   'ok': True,
+    #   'received': None,
+    #   'message': 'The Socket is Connected, ready to use!',
+    #   'data': None,
+    #   'error': None
+    # }
+
+sio.connect('http://localhost:4500', namespaces=['/AVLTree'])
+```
+
+</CodeGroup>
+
+## Response Envelope
+
+Every event emitted by the server — lifecycle or operational — wraps its payload in the same `ResponseSocket` envelope. Clients can rely on a consistent shape regardless of which event they are handling.
+
+```json
+{
+  "ok": true,
+  "received": "<value the client originally sent>",
+  "message": "Human-readable status string",
+  "data": "<tree dict, obstacle ID string, or null>",
+  "error": null
+}
+```
+
+<ResponseField name="ok" type="boolean" required>
+  `true` when the operation completed successfully; `false` when it failed (e.g., obstacle not found, tree empty).
+</ResponseField>
+
+<ResponseField name="received" type="any">
+  The raw message the client sent when triggering the event. Useful for correlating responses to requests on the client side.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A human-readable description of the result — for example `"This is the tree by moment!"` or `"Obstacle removed!"`.
+</ResponseField>
+
+<ResponseField name="data" type="object | string | null">
+  The event payload. For tree-state events this is a nested `{id, children}` dict produced by `AVLTree.to_dict()`. For traversal events it is a single obstacle ID string. `null` when there is nothing to return (e.g., on a bare `connected` event).
+
+  If the underlying Python object has a `to_dict()` method, `ResponseSocket` calls it automatically before serialising.
+</ResponseField>
+
+<ResponseField name="error" type="any | null">
+  Error details when `ok` is `false`, otherwise `null`. May be an exception message string.
+</ResponseField>
+
+## CORS
+
+The server is initialised with `cors_allowed_origins="*"`, so connections are accepted from any origin. This is suitable for local development and game clients running on the same machine.
+
+<Note>
+  The `SocketManager` constructor passes `cors_allowed_origins` directly to Flask-SocketIO's `SocketIO` base class. The default configuration also enables `supports_credentials=True` through Flask-SocketIO's main constructor defaults, which is appropriate when the frontend and backend run on separate origins.
+</Note>
+
+## Next Steps
+
+For the complete list of events, payloads, and code examples for every operation in the `/AVLTree` namespace, see the [Socket Events reference](/api/socket-events).

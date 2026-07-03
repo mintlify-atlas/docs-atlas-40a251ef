@@ -1,0 +1,101 @@
+{
+  "projectType": "api-service",
+  "projectName": "AVL Tree Car — Backend",
+  "projectDescription": "A Flask + Socket.IO backend that manages an AVL self-balancing binary search tree of road obstacles, powering a car-simulation frontend.",
+  "theme": "luma",
+  "primaryColor": "#E84A27",
+  "lightColor": "#FDECE8",
+  "darkColor": "#8C1F0A",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "project-structure"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/avl-tree",
+              "concepts/obstacle-model",
+              "concepts/car-simulation"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/configs-json",
+              "configuration/obstacle-types"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "REST Endpoints",
+            "pages": [
+              "api/overview",
+              "api/avl-endpoints",
+              "api/data-endpoints"
+            ]
+          },
+          {
+            "group": "Socket.IO Events",
+            "pages": [
+              "api/socket-overview",
+              "api/socket-events"
+            ]
+          },
+          {
+            "group": "Data Models",
+            "pages": [
+              "api/models"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AVL self-balancing binary search tree with insert, delete, search, and rotation operations",
+    "Three traversal orders: inorder, preorder, and posorder",
+    "Real-time obstacle updates via Socket.IO namespace /AVLTree",
+    "REST API for node management and configuration loading",
+    "Obstacle types with configurable damage values (cone, rock, tree, tire, nail, trunk, person, car, bicycle, chair)",
+    "JSON configuration endpoint for bulk obstacle import with validation",
+    "CORS-enabled Flask server running on localhost:4500"
+  ],
+  "publicApiSurface": [
+    "GET /",
+    "GET /avl",
+    "POST /avl/node/add",
+    "POST /avl/node/remove",
+    "POST /avl/add/configs",
+    "GET /data",
+    "GET /data/json/<filename>",
+    "Socket event: connect (namespace /AVLTree)",
+    "Socket event: disconnect (namespace /AVLTree)",
+    "Socket event: get_tree_avl → emits avl_tree_balanced",
+    "Socket event: reset_avl → emits avl_reseted",
+    "Socket event: remove_obstacle → emits avl_tree_balanced",
+    "Socket event: road_preorder → emits preorder",
+    "Socket event: road_inorder → emits inorder",
+    "Socket event: road_posorder → emits posorder",
+    "AVLTree.insert(obstacle: Obstacle) -> ReturnModels",
+    "AVLTree.delete(obstacle: Obstacle) -> ReturnModels",
+    "AVLTree.search(obstacle: Obstacle) -> ReturnModels",
+    "AVLTree.inorder() -> ReturnModels",
+    "AVLTree.preorder() -> ReturnModels",
+    "AVLTree.posorder() -> ReturnModels",
+    "AVLTree.to_dict() -> dict",
+    "AVLTree.reset() -> None"
+  ]
+}

@@ -1,0 +1,78 @@
+---
+title: "REST API overview for AVL Tree Car Backend"
+sidebarTitle: "Overview"
+description: "All REST endpoints in AVL Tree Car Backend at a glance — base URL, response format, error codes, CORS policy, and links to per-resource references."
+---
+
+The AVL Tree Car Backend exposes a JSON REST API served by Flask on `http://localhost:4500`. Every route returns a consistent `BaseFlaskResponse` envelope — no authentication is required and CORS is open to all origins (`*`). POST requests must send a `Content-Type: application/json` header with a JSON body; GET requests carry no body. Two resource groups exist: `/avl` for managing the self-balancing obstacle tree, and `/data` for reading static JSON configuration files from the server.
+
+## Base URL
+
+```
+http://localhost:4500
+```
+
+<Note>
+  All routes are registered **both with and without a trailing slash** — `POST /avl/node/add` and `POST /avl/node/add/` are identical. See the [Router source](https://github.com/tutosrive/avl_tree_car) for details.
+</Note>
+
+## Authentication
+
+No authentication is required. The server applies a permissive CORS policy (`*`) so any origin may call any endpoint without tokens or API keys.
+
+## Request format
+
+For all `POST` endpoints, send a JSON body with the appropriate `Content-Type` header:
+
+```bash
+Content-Type: application/json
+```
+
+`GET` endpoints accept no request body.
+
+## Response format
+
+Every response — success or error — follows the `BaseFlaskResponse` shape:
+
+```json
+{
+  "status": 200,
+  "ok": true,
+  "message": "Human-readable result",
+  "data": {},
+  "error": null
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `integer` | HTTP status code mirrored inside the body |
+| `ok` | `boolean` | `true` on success, `false` on any error |
+| `message` | `string` | Human-readable description of the outcome |
+| `data` | `object \| array \| string` | Response payload; `{}` when empty |
+| `error` | `string \| null` | Error detail or `null` on success |
+
+## HTTP status codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | Success |
+| `400` | Bad request — validation error, duplicate node, or resource not found |
+| `500` | Server-side exception during processing |
+
+## Endpoint summary
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/` | Health check — confirms the server is running |
+| `GET` | `/avl` | AVL section welcome message |
+| `POST` | `/avl/node/add` | Insert a single obstacle into the AVL tree |
+| `POST` | `/avl/node/remove` | Remove a single obstacle from the AVL tree |
+| `POST` | `/avl/add/configs` | Bulk-import a simulation config with multiple obstacles |
+| `GET` | `/data` | Data section welcome message |
+| `GET` | `/data/json/<filename>` | Read a JSON file from the server's `src/data/` folder |
+
+## Detailed references
+
+- **AVL endpoints** — insert, remove, and bulk-configure obstacle nodes → [AVL Endpoints](/api/avl-endpoints)
+- **Data endpoints** — read static JSON files from the backend → [Data Endpoints](/api/data-endpoints)

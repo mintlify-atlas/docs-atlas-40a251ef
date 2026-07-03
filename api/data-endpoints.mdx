@@ -1,0 +1,116 @@
+---
+title: "Data endpoints: serve JSON files from the backend"
+sidebarTitle: "Data Endpoints"
+description: "Reference for GET /data and GET /data/json/<filename> — read static JSON files from the server's data folder, including obstacle type definitions."
+---
+
+The `/data` routes expose static JSON files stored in the server's `src/data/` folder over HTTP. They are primarily used by clients to fetch obstacle type definitions — the catalogue that maps integer `type_id` values to obstacle names and damage values — but any `.json` file placed in that directory becomes immediately accessible. All responses follow the standard `BaseFlaskResponse` envelope documented in the [API Overview](/api/overview).
+
+---
+
+## GET /data
+
+Returns a welcome message confirming the Data section is reachable. No request body or parameters are needed.
+
+**Response 200**
+
+```json
+{
+  "status": 200,
+  "ok": true,
+  "message": "Welcome to Data section!",
+  "data": {},
+  "error": null
+}
+```
+
+---
+
+## GET /data/json/\<filename\>
+
+Reads the specified `.json` file from the server's `src/data/` directory and returns its parsed contents in the `data` field. The route accepts both `GET` and `POST` methods; standard usage is `GET`.
+
+### Path parameter
+
+<ParamField path="filename" type="string" required>
+  The filename including its `.json` extension, for example `obstacles_types.json`. Only the bare filename is accepted — no subdirectory segments or path separators.
+</ParamField>
+
+### Responses
+
+<ResponseField name="status" type="integer">
+  `200` when the file exists and was parsed successfully; `400` when the file cannot be found.
+</ResponseField>
+
+<ResponseField name="ok" type="boolean">
+  `true` on success, `false` if the file does not exist.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  On success: `"'data' is the content of '<filename>' file!"`. On failure: the original request description, `"You're trying get the file: '<filename>'"`.
+</ResponseField>
+
+<ResponseField name="data" type="object | array">
+  The parsed JSON contents of the file on success; `{}` if the file was not found.
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  `null` on success; `"The file '<filename>' don't exists!"` when the requested file is missing.
+</ResponseField>
+
+### curl examples
+
+<CodeGroup>
+```bash Fetch obstacle types
+curl http://localhost:4500/data/json/obstacles_types.json
+```
+
+```bash Fetch with trailing slash
+curl http://localhost:4500/data/json/obstacles_types.json/
+```
+</CodeGroup>
+
+### Success response — `obstacles_types.json`
+
+The `obstacles_types.json` file ships with the server and defines the ten obstacle categories used throughout the simulation. Each entry maps a numeric `id` to a display `type` name and a `damage` value applied when the car collides with that obstacle.
+
+```json
+{
+  "status": 200,
+  "ok": true,
+  "message": "'data' is the conent of 'obstacles_types.json' file!",
+  "data": [
+    { "id": 1,  "type": "Cone",    "damage": 0.5 },
+    { "id": 2,  "type": "Rock",    "damage": 1   },
+    { "id": 3,  "type": "Tree",    "damage": 10  },
+    { "id": 4,  "type": "Tire",    "damage": 5   },
+    { "id": 5,  "type": "Nail",    "damage": 4   },
+    { "id": 6,  "type": "Trunk",   "damage": 6   },
+    { "id": 7,  "type": "Person",  "damage": 3   },
+    { "id": 8,  "type": "Car",     "damage": 15  },
+    { "id": 9,  "type": "Bicycle", "damage": 7   },
+    { "id": 10, "type": "Chair",   "damage": 6   }
+  ],
+  "error": null
+}
+```
+
+### File not found — 400
+
+```json
+{
+  "status": 400,
+  "ok": false,
+  "message": "You're trying get the file: 'missing_file.json'",
+  "data": {},
+  "error": "The file 'missing_file.json' don't exists!"
+}
+```
+
+<Warning>
+  Only files physically present inside `src/data/` on the server are accessible. The route accepts a bare **filename only** — path separators and directory traversal patterns (e.g. `../../etc/passwd`) are not honoured because the server prepends its fixed data folder path before reading. Adding new JSON files to `src/data/` makes them available immediately without a server restart.
+</Warning>
+
+<Note>
+  The `type_id` values accepted by `POST /avl/node/add` and `POST /avl/add/configs` correspond directly to the `id` field in `obstacles_types.json`. Fetch this file at startup to populate obstacle-type selectors in your client.
+</Note>
